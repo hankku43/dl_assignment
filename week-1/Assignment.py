@@ -7,7 +7,6 @@ import csv
 
 try:
     # 抓取資料
-    page = 1
     id_and_price_list = []
     high_rating_ids = []
     i5_prices = []
@@ -50,7 +49,7 @@ try:
     else:
         print("查無i5電腦，無法計算價格平均值")
 
-    # 計算並輸出z-score檔案
+    # 計算並輸出z-score檔案(不使用套件，練習計算z-score)
     if id_and_price_list:
         mean = sum(obj["Price"] for obj in id_and_price_list) / len(id_and_price_list)
         sd = (
