@@ -1,8 +1,11 @@
 import math
+import logging
 from typing import Union, Iterable, Sequence, List
 
 
-# Task 1
+# ======================================================
+# =============== 幾何核心：2D 基礎 =====================
+# ======================================================
 class Base2D:
     def __init__(self, x: Union[float, Sequence[float]], y: float = None):
         if y is None:
@@ -31,6 +34,9 @@ class Base2D:
         return hash((round(self.x, 12), round(self.y, 12)))
 
 
+# ======================================================
+# ==================== 點與向量 =========================
+# ======================================================
 # 點物件
 class Point(Base2D):
 
@@ -99,7 +105,6 @@ class Vector(Base2D):
     def __neg__(self) -> "Vector":
         return Vector(-self.x, -self.y)
 
-    # 幾何功能
     def length(self) -> float:
         return math.hypot(self.x, self.y)
 
@@ -112,6 +117,9 @@ class Vector(Base2D):
         return self.x * o.y - self.y * o.x
 
 
+# ======================================================
+# ==================== 幾何圖形 =========================
+# ======================================================
 # 線物件
 class Line:
     def __init__(
@@ -195,6 +203,162 @@ class Polygon:
         )
 
 
+# Task2
+# ======================================================
+# ==================== 遊戲邏輯 =========================
+# ======================================================
+class Enemy:
+
+    _counter = 0
+
+    def __init__(
+        self,
+        point: Union[Point, Sequence[float]],
+        hp: int,
+        vector: Union[Point, Vector, Sequence[float]],
+    ):
+        Enemy._counter += 1
+        self.id = f"E{Enemy._counter}"
+        self.position = Point.to_point(point)
+        self.hp = hp
+        self.vector = Vector.to_vector(vector)
+        self.is_alive = True
+        self.dead_at = None
+
+    def move(self):
+        if self.is_alive:
+            self.position += self.vector
+            logger.debug(
+                f"{self.id} 移動到 ({self.position.x:.2f}, {self.position.y:.2f})"
+            )
+
+    def status_update(self):
+        self.hp = max(self.hp, 0)
+        if self.hp == 0:
+            self.is_alive = False
+            self.dead_at = self.position
+            logger.debug(
+                f"{self.id} 死亡於 ({self.dead_at.x:.2f}, {self.dead_at.y:.2f})"
+            )
+
+
+class Tower:
+
+    _counter_basic = 0
+    _counter_advanced = 0
+
+    DEFAULT_RADIUS = None
+    DEFAULT_ATTACK = None
+
+    def __init__(
+        self, center: Union[Point, Sequence[float]], r: float = None, attack: int = None
+    ):
+        self.center = Point.to_point(center)
+        self.r = r if r is not None else self.DEFAULT_RADIUS
+        self.attack = attack if attack is not None else self.DEFAULT_ATTACK
+        if self.r is None or self.attack is None:
+            raise ValueError("必須指定半徑與攻擊力")
+        self.range_circle = Circle(self.center, self.r)
+
+        if isinstance(self, BasicTower):
+            Tower._counter_basic += 1
+            self.id = f"T{Tower._counter_basic}"
+        elif isinstance(self, AdvancedTower):
+            Tower._counter_advanced += 1
+            self.id = f"A{Tower._counter_advanced}"
+        else:
+            self.id = "Unknown"
+
+    def attack_enemy(self, enemy: "Enemy"):
+        if self.range_circle.point_position(enemy.position) != "outside":
+            if enemy.is_alive:
+                enemy.hp -= self.attack
+                logger.debug(
+                    f"{self.id} 對 {enemy.id} 攻擊 {self.attack} 點傷害，HP={enemy.hp}"
+                )
+
+
+class BasicTower(Tower):
+    DEFAULT_RADIUS = 2
+    DEFAULT_ATTACK = 2
+
+
+class AdvancedTower(Tower):
+    DEFAULT_RADIUS = 4
+    DEFAULT_ATTACK = 4
+
+
+# ======================================================
+# ================= 遊戲流程控制 ========================
+# ======================================================
+def next_round(game, round_number) -> bool:
+
+    logger.debug(f"\n=== Round {round_number + 1} ===")
+
+    def enemy_move(enemies: list):
+        for enemy in enemies:
+            enemy.move()
+
+    def tower_attack(enemies: list, towers: list):
+        for tower in towers:
+            for enemy in enemies:
+                tower.attack_enemy(enemy)
+
+    def status_update(enemies: list) -> bool:
+        is_continue = True
+        enemies_hp = 0
+        for enemy in enemies:
+            enemy.status_update()
+            enemies_hp += enemy.hp
+        is_continue = False if enemies_hp == 0 else True
+        return is_continue
+
+    enemy_move(game["enemies"])
+    tower_attack(game["enemies"], game["towers"])
+    return status_update(game["enemies"])
+
+
+def create_default_game():
+    return {
+        "total_round": 10,
+        "enemies": [
+            Enemy((-10, 2), 10, (2, -1)),
+            Enemy((-8, 0), 10, (3, 1)),
+            Enemy((-9, -1), 10, (3, 0)),
+        ],
+        "towers": [
+            BasicTower((-3, 2)),
+            BasicTower((-1, -2)),
+            BasicTower((4, 2)),
+            BasicTower((7, 0)),
+            AdvancedTower((1, 1)),
+            AdvancedTower((4, -3)),
+        ],
+    }
+
+
+def gameStart(game_setting=None):
+    if game_setting is None:
+        game_setting = create_default_game()
+    print("歡迎進入遊戲，遊戲以展示模式開始。")
+
+    for i in range(game_setting["total_round"]):
+        if not next_round(game_setting, i):
+            logger.info(f"所有敵人已在回合 {i + 1} 被消滅。")
+            break
+
+    print("\n--- 遊戲結束 ---")
+    print("敵人最終狀態：")
+    for enemy in game_setting["enemies"]:
+        print(
+            f"{enemy.id}: Position=({enemy.position.x:.2f}, {enemy.position.y:.2f}), "
+            f"HP={enemy.hp}"
+        )
+
+
+# ======================================================
+# ===================== Task1 ==========================
+# ======================================================
 print("\n-----以Point物件作為參數----")
 p1 = Point(-6, 1)
 p2 = Point(2, 4)
@@ -243,127 +407,16 @@ print(
 )
 
 
-# Task2
-class Enemy:
+# ======================================================
+# ===================== Task2 ==========================
+# ======================================================
+# === 設定 logging ===
+logger = logging.getLogger("TowerDefense")
+logger.setLevel(logging.INFO)  # 預設層級，可改成 DEBUG 看詳細過程
 
-    _counter = 0
-
-    def __init__(
-        self,
-        point: Union[Point, Sequence[float]],
-        hp: int,
-        vector: Union[Point, Vector, Sequence[float]],
-    ):
-        Enemy._counter += 1
-        self.id = f"E{Enemy._counter}"
-        self.position = Point.to_point(point)
-        self.hp = hp
-        self.vector = Vector.to_vector(vector)
-        self.is_alive = True
-        self.dead_at = None
-
-    def move(self):
-        if self.is_alive:
-            self.position += self.vector
-
-    def status_update(self):
-        self.hp = max(self.hp, 0)
-        if self.hp == 0:
-            self.is_alive = False
-            self.dead_at = self.position
-            print(f"{self.id} 死亡於 ({self.dead_at.x:.2f}, {self.dead_at.y:.2f})")
-
-
-class Tower:
-
-    DEFAULT_RADIUS = None
-    DEFAULT_ATTACK = None
-
-    def __init__(
-        self, center: Union[Point, Sequence[float]], r: float = None, attack: int = None
-    ):
-        self.center = Point.to_point(center)
-        self.r = r if r is not None else self.DEFAULT_RADIUS
-        self.attack = attack if attack is not None else self.DEFAULT_ATTACK
-        if self.r is None or self.attack is None:
-            raise ValueError("必須指定半徑與攻擊力")
-        self.range_circle = Circle(self.center, self.r)
-
-    def attack_enemy(self, enemy: "Enemy"):
-        if self.range_circle.point_position(enemy.position) != "outside":
-            enemy.hp -= self.attack
-            print(
-                f"{self.__class__.__name__} 對 {enemy.id} 攻擊 {self.attack} 點傷害，HP={enemy.hp}"
-            )
-
-
-class BasicTower(Tower):
-    DEFAULT_RADIUS = 2
-    DEFAULT_ATTACK = 2
-
-
-class AdvancedTower(Tower):
-    DEFAULT_RADIUS = 4
-    DEFAULT_ATTACK = 4
-
-
-def next_round(game, round_number):
-
-    print(f"\n=== Round {round_number + 1} ===")
-
-    def enemy_move(enemies: list):
-        for enemy in enemies:
-            enemy.move()
-            print(f"{enemy.id} 移動到 ({enemy.position.x:.2f}, {enemy.position.y:.2f})")
-
-    def tower_attack(enemies: list, towers: list):
-        for tower in towers:
-            for enemy in enemies:
-                tower.attack_enemy(enemy)
-
-    def status_update(enemies: list):
-        for enemy in enemies:
-            enemy.status_update()
-
-    enemy_move(game["enemies"])
-    tower_attack(game["enemies"], game["towers"])
-    status_update(game["enemies"])
-
-
-def create_default_game():
-    return {
-        "total_round": 10,
-        "enemies": [
-            Enemy((-10, 2), 10, (2, -1)),
-            Enemy((-8, 0), 10, (3, 1)),
-            Enemy((-9, -1), 10, (3, 0)),
-        ],
-        "towers": [
-            BasicTower((-3, 2)),
-            BasicTower((-1, -2)),
-            BasicTower((4, 2)),
-            BasicTower((7, 0)),
-            AdvancedTower((1, 1)),
-            AdvancedTower((4, -3)),
-        ],
-    }
-
-
-def gameStart(game_setting=None):
-    if game_setting is None:
-        game_setting = create_default_game()
-    print("歡迎進入遊戲，遊戲以展示模式開始。")
-
-    for i in range(game_setting["total_round"]):
-        next_round(game_setting, i)
-
-    print("\n--- 遊戲結束 ---")
-    print("敵人最終狀態：")
-    for enemy in game_setting["enemies"]:
-        print(
-            f"{enemy.id}: Position=({enemy.position.x:.2f}, {enemy.position.y:.2f}), "
-            f"HP={enemy.hp}"
-        )
-
-
+# 建立輸出格式與 handler
+handler = logging.StreamHandler()
+formatter = logging.Formatter("[%(levelname)s] %(message)s")
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 gameStart()
