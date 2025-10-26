@@ -280,12 +280,12 @@ class Tower:
 
 class BasicTower(Tower):
     DEFAULT_RADIUS = 2
-    DEFAULT_ATTACK = 2
+    DEFAULT_ATTACK = 1
 
 
 class AdvancedTower(Tower):
     DEFAULT_RADIUS = 4
-    DEFAULT_ATTACK = 4
+    DEFAULT_ATTACK = 2
 
 
 # ======================================================
