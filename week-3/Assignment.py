@@ -148,18 +148,6 @@ class Network:
         return [node.output for node in self.map.outputs]
 
 
-network_json = """
-{
-  "input": 3,
-  "layer": [
-    {"nodes": 3, "weights": [[0.1, 0.2, 0.3],[0.5, 0.6, 0.7],[0.9, 1.0, 1.1]], "bias_weights": [0.2, 0.4, 0.6]},
-    {"nodes": 2, "weights": [[1.3, 1.4, 1.5],[1.7, 1.8, 1.9]], "bias_weights": [0.2, 0.4]}
-  ],
-  "output": {"nodes": 1, "weights": [[0.5,0.8]], "bias_weights": [0.5]}
-}
-"""
-
-
 # ===============================
 # Console 互動輸入模型設定並生成 JSON
 # ===============================
@@ -227,28 +215,118 @@ def input_network_from_console():
 
 
 # ===============================
-# 執行範例
+# 執行
 # ===============================
-network_json = input_network_from_console()
-print("\nGenerated network JSON:\n", network_json)
+# 第一個模型 JSON 字串
+model_1_json = """
+{
+  "input": 2,
+  "layer": [
+    {
+      "nodes": 2,
+      "weights": [
+        [0.5, 0.2],
+        [0.6, -0.6]
+      ],
+      "bias_weights": [0.3, 0.25]
+    }
+  ],
+  "output": {
+    "nodes": 1,
+    "weights": [
+      [0.8, 0.4]
+    ],
+    "bias_weights": [-0.5]
+  }
+}
+"""
 
-# 取得目前日期時間
-now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+# 第二個模型 JSON 字串
+model_2_json = """
+{
+  "input": 2,
+  "layer": [
+    {
+      "nodes": 2,
+      "weights": [
+        [0.5, 1.5],
+        [0.6, -0.8]
+      ],
+      "bias_weights": [0.3, 1.25]
+    },
+    {
+      "nodes": 1,
+      "weights": [
+        [0.6, -0.8]
+      ],
+      "bias_weights": [0.3]
+    }
+  ],
+  "output": {
+    "nodes": 2,
+    "weights": [
+      [0.5],
+      [-0.4]
+    ],
+    "bias_weights": [0.2, 0.5]
+  }
+}
+"""
+print("程式開始")
+print("模型一：")
+net = Network(model_1_json)
+print("input = (1.5, 0.5)")
+result = net.forward((1.5, 0.5))
+print("result:", result)
+print()
+print("input = (0, 1)")
+result = net.forward((0, 1))
+print("result:", result)
+print()
 
-# 組成檔名
-filename = f"network_JSON_{now_str}.json"
+print("模型二：")
+net = Network(model_2_json)
+print("input = (0.75, 1.25)")
+result = net.forward((0.75, 1.25))
+print("result:", result)
+print()
+print("input = (-1, 0.5)")
+result = net.forward((-1, 0.5))
+print("result:", result)
 
-# 存檔
-with open(filename, "w", encoding="utf-8") as f:
-    f.write(network_json)
+# 互動選擇
+while True:
+    choice = input("\n請選擇操作 (1: 使用自訂模型, 0: 結束程式): ").strip()
+    if choice == "0":
+        print("程式結束")
+        break
+    elif choice == "1":
+        # 使用自訂模型
+        try:
+            network_json = input_network_from_console()
+            print("\nGenerated network JSON:\n", network_json)
+            # 取得目前日期時間
+            now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-print(f"JSON 已經存成 {filename}")
+            # 組成檔名
+            filename = f"network_JSON_{now_str}.json"
 
-net = Network(network_json)
-net.map.show()
+            # 存檔
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(network_json)
 
-input_values = [
-    float(x) for x in input("請輸入 input 節點的值，以逗號分隔: ").split(",")
-]
-result = net.forward(input_values)
-print("Forward result:", result)
+            print(f"JSON 已經存成 {filename}")
+            net.map.show()
+
+            print("以自訂模型開始運算：")
+            net = Network(network_json)
+            input_values = [
+                float(x)
+                for x in input("請輸入 input 節點的值，以逗號分隔: ").split(",")
+            ]
+            result = net.forward(input_values)
+            print("Forward result:", result)
+        except Exception as e:
+            print("發生錯誤:", e)
+    else:
+        print("輸入錯誤，請輸入 1 或 0")
