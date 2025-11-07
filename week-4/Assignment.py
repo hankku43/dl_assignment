@@ -27,7 +27,6 @@ class Network:
 
         @staticmethod
         def softmax(x: Sequence[float]) -> List[float]:
-            """Softmax：適用於分類輸出層"""
             max_x = max(x)
             exp_x = [math.exp(v - max_x) for v in x]
             total = sum(exp_x)
@@ -49,7 +48,6 @@ class Network:
 
         @staticmethod
         def binary_cross_entropy(y_true, y_pred):
-            """Binary Cross Entropy"""
             y_true = Network.Loss._to_list(y_true)
             y_pred = Network.Loss._to_list(y_pred)
             return -sum(
@@ -59,7 +57,6 @@ class Network:
 
         @staticmethod
         def categorical_cross_entropy(y_true, y_pred):
-            """Categorical Cross Entropy"""
             y_true = Network.Loss._to_list(y_true)
             y_pred = Network.Loss._to_list(y_pred)
             return -sum(yt * math.log(yp) for yt, yp in zip(y_true, y_pred))
@@ -235,9 +232,6 @@ class Network:
         # 建立 output nodes
         output_cfg = config.get("output", {})
         self.map.outputs = self._build_layer(output_cfg, pre_layer, layer_type="O")
-
-        # # 顯示網路架構
-        # self.map.show()
 
     # ------------------------------------------------------------
     def _build_layer(
@@ -595,68 +589,68 @@ model_4_json = """
 print("程式開始")
 print("模型一：")
 net = Network(model_1_json)
-print("input = (1.5, 0.5)")
+# print("input = (1.5, 0.5)")
 outputs = net.forward((1.5, 0.5))
 print("outputs:", outputs)
-print("expects = (0.8, 1)")
+# print("expects = (0.8, 1)")
 expects = (0.8, 1)
 print("Total Loss:", Network.Loss.mse(expects, outputs))
 print()
-print("input = (0, 1)")
+# print("input = (0, 1)")
 outputs = net.forward((0, 1))
 print("outputs:", outputs)
-print("expects = (0.5, 0.5)")
+# print("expects = (0.5, 0.5)")
 expects = (0.5, 0.5)
 print("Total Loss:", Network.Loss.mse(expects, outputs))
 print()
 
 print("模型二：")
 net = Network(model_2_json)
-print("input = (0.75, 1.25)")
+# print("input = (0.75, 1.25)")
 outputs = net.forward((0.75, 1.25))
 print("outputs:", outputs)
-print("expects = (1)")
+# print("expects = (1)")
 expects = 1
 print("Total Loss:", Network.Loss.binary_cross_entropy(expects, outputs))
 print()
-print("input = (-1, 0.5)")
+# print("input = (-1, 0.5)")
 outputs = net.forward((-1, 0.5))
 print("outputs:", outputs)
-print("expects = (0)")
+# print("expects = (0)")
 expects = 0
 print("Total Loss:", Network.Loss.binary_cross_entropy(expects, outputs))
 print()
 
 print("模型三：")
 net = Network(model_3_json)
-print("input = (1.5, 0.5)")
+# print("input = (1.5, 0.5)")
 outputs = net.forward((1.5, 0.5))
 print("outputs:", outputs)
-print("expects = (1, 0, 1)")
+# print("expects = (1, 0, 1)")
 expects = (1, 0, 1)
 print("Total Loss:", Network.Loss.binary_cross_entropy(expects, outputs))
 print()
-print("input = (0, 1)")
+# print("input = (0, 1)")
 outputs = net.forward((0, 1))
 print("outputs:", outputs)
-print("expects = (1, 1, 0)")
+# print("expects = (1, 1, 0)")
 expects = (1, 1, 0)
 print("Total Loss:", Network.Loss.binary_cross_entropy(expects, outputs))
 print()
 
 print("模型四：")
 net = Network(model_4_json)
-print("input = (1.5, 0.5)")
+# print("input = (1.5, 0.5)")
 outputs = net.forward((1.5, 0.5))
 print("outputs:", outputs)
-print("expects = (1, 0, 0)")
+# print("expects = (1, 0, 0)")
 expects = (1, 0, 0)
 print("Total Loss:", Network.Loss.categorical_cross_entropy(expects, outputs))
 print()
-print("input = (0, 1)")
+# print("input = (0, 1)")
 outputs = net.forward((0, 1))
 print("outputs:", outputs)
-print("expects = (0, 0, 1)")
+# print("expects = (0, 0, 1)")
 expects = (0, 0, 1)
 print("Total Loss:", Network.Loss.categorical_cross_entropy(expects, outputs))
 # 互動選擇
