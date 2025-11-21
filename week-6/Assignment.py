@@ -458,7 +458,7 @@ class Network:
 # ===============================
 
 # ==========================================
-# 1. 讀取與輔助函數
+# 讀取與輔助函數
 # ==========================================
 file_path = "gender-height-weight.csv" # 修正檔名 typo: ender -> gender
 
@@ -482,8 +482,9 @@ def calculate_stats(values):
     return mean, std
 
 # ==========================================
-# 2. 主程式邏輯
+# Task 1
 # ==========================================
+
 
 # --- A. 讀取資料並轉換型別 ---
 raw_data_str = read_csv_to_dict(file_path)
@@ -540,29 +541,6 @@ train_inputs, train_expects = create_dataset(train_set)
 test_inputs, test_expects = create_dataset(test_set)
 
 # --- E. 初始化網路 ---
-model_8h_json = """
-{
-  "input": {
-    "nodes": 2,
-    "activation": "linear"
-  },
-  "layer": [
-    {
-      "nodes": 8,
-      "activation": "sigmoid",
-      "weights": [[0.1, -0.1], [-0.1, 0.1], [0.1, -0.1], [-0.1, 0.1], [0.1, -0.1], [-0.1, 0.1], [0.1, -0.1], [-0.1, 0.1]],
-      "bias_weights": [0.1, -0.1, 0.1, -0.1, 0.1, -0.1, 0.1, -0.1]
-    }
-  ],
-  "output": {
-    "nodes": 1,
-    "activation": "linear",
-    "weights": [[0.1, -0.1, 0.1, -0.1, 0.1, -0.1, 0.1, -0.1]],
-    "bias_weights": [0.1]
-  }
-}
-"""
-
 model_2h_json = """
 {
   "input": {
@@ -581,29 +559,6 @@ model_2h_json = """
     "nodes": 1,
     "activation": "linear",
     "weights": [[0.1, -0.1]],
-    "bias_weights": [0.1]
-  }
-}
-"""
-
-model_3h_json = """
-{
-  "input": {
-    "nodes": 2,
-    "activation": "linear"
-  },
-  "layer": [
-    {
-      "nodes": 3,
-      "activation": "sigmoid",
-      "weights": [[0.1, -0.1], [-0.1, 0.1], [0.1, -0.1]],
-      "bias_weights": [0.1, -0.1, 0.1]
-    }
-  ],
-  "output": {
-    "nodes": 1,
-    "activation": "linear",
-    "weights": [[0.1, -0.1, 0.1]],
     "bias_weights": [0.1]
   }
 }
@@ -703,3 +658,23 @@ for i in range(5):
     
 print("最後權重:")
 net.show_weights()
+
+# ==========================================
+# Task 2
+# ==========================================
+
+
+raw_data = read_csv_to_dict("titanic.csv")
+processed_data = []
+
+for row in raw_data:
+    try:
+        # 將字串轉為浮點數，並處理 Gender
+        item = {
+            'Gender': 0 if row['Gender'] == 'Male' else 1, # Male=0, Female=1
+            'Height': float(row['Height']),
+            'Weight': float(row['Weight'])
+        }
+        processed_data.append(item)
+    except ValueError:
+        continue # 跳過資料缺漏或格式錯誤的行
