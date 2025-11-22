@@ -2,6 +2,7 @@ import json
 import math
 import csv
 import random
+import re
 from typing import Sequence, List, Dict
 
 
@@ -485,196 +486,257 @@ def calculate_stats(values):
 # Task 1
 # ==========================================
 
+def task1():
+    # --- A. 讀取資料並轉換型別 ---
+    raw_data_str = read_csv_to_dict(file_path)
+    processed_data = []
 
-# --- A. 讀取資料並轉換型別 ---
-raw_data_str = read_csv_to_dict(file_path)
-processed_data = []
+    for row in raw_data_str:
+        try:
+            # 將字串轉為浮點數，並處理 Gender
+            item = {
+                'Gender': 0 if row['Gender'] == 'Male' else 1, # Male=0, Female=1
+                'Height': float(row['Height']),
+                'Weight': float(row['Weight'])
+            }
+            processed_data.append(item)
+        except ValueError:
+            continue # 跳過資料缺漏或格式錯誤的行
 
-for row in raw_data_str:
-    try:
-        # 將字串轉為浮點數，並處理 Gender
-        item = {
-            'Gender': 0 if row['Gender'] == 'Male' else 1, # Male=0, Female=1
-            'Height': float(row['Height']),
-            'Weight': float(row['Weight'])
-        }
-        processed_data.append(item)
-    except ValueError:
-        continue # 跳過資料缺漏或格式錯誤的行
+    # --- B. 切分訓練集與檢查集 (8:2) ---
+    random.seed(42) # 固定種子，保證每次切分結果一樣
+    random.shuffle(processed_data)
 
-# --- B. 切分訓練集與檢查集 (8:2) ---
-random.seed(42) # 固定種子，保證每次切分結果一樣
-random.shuffle(processed_data)
+    split_idx = int(len(processed_data) * 0.8)
+    train_set = processed_data[:split_idx]
+    test_set = processed_data[split_idx:]
 
-split_idx = int(len(processed_data) * 0.8)
-train_set = processed_data[:split_idx]
-test_set = processed_data[split_idx:]
+    print(f"資料載入完成: 總筆數 {len(processed_data)}")
+    print(f"訓練集: {len(train_set)}, 檢查集: {len(test_set)}")
 
-print(f"資料載入完成: 總筆數 {len(processed_data)}")
-print(f"訓練集: {len(train_set)}, 檢查集: {len(test_set)}")
+    # --- C. 計算統計數據 (只使用訓練集!) ---
+    # 避免 Data Leakage: 測試集的資料不該影響標準化參數
+    train_heights = [d['Height'] for d in train_set]
+    train_weights = [d['Weight'] for d in train_set]
 
-# --- C. 計算統計數據 (只使用訓練集!) ---
-# 避免 Data Leakage: 測試集的資料不該影響標準化參數
-train_heights = [d['Height'] for d in train_set]
-train_weights = [d['Weight'] for d in train_set]
+    h_mean, h_std = calculate_stats(train_heights)
+    w_mean, w_std = calculate_stats(train_weights)
 
-h_mean, h_std = calculate_stats(train_heights)
-w_mean, w_std = calculate_stats(train_weights)
+    print(f"統計參數 (Train): 身高均值={h_mean:.2f}, 體重均值={w_mean:.2f}")
 
-print(f"統計參數 (Train): 身高均值={h_mean:.2f}, 體重均值={w_mean:.2f}")
+    # --- D. 準備網路輸入資料 (標準化) ---
+    def create_dataset(source_data):
+        inputs = []
+        expects = []
+        for row in source_data:
+            # Input: [Gender, Standardized_Height]
+            h_norm = (row['Height'] - h_mean) / h_std
+            inputs.append([row['Gender'], h_norm])
+            
+            # Expect: [Standardized_Weight]
+            w_norm = (row['Weight'] - w_mean) / w_std
+            expects.append([w_norm])
+        return inputs, expects
 
-# --- D. 準備網路輸入資料 (標準化) ---
-def create_dataset(source_data):
-    inputs = []
-    expects = []
-    for row in source_data:
-        # Input: [Gender, Standardized_Height]
-        h_norm = (row['Height'] - h_mean) / h_std
-        inputs.append([row['Gender'], h_norm])
-        
-        # Expect: [Standardized_Weight]
-        w_norm = (row['Weight'] - w_mean) / w_std
-        expects.append([w_norm])
-    return inputs, expects
+    train_inputs, train_expects = create_dataset(train_set)
+    test_inputs, test_expects = create_dataset(test_set)
 
-train_inputs, train_expects = create_dataset(train_set)
-test_inputs, test_expects = create_dataset(test_set)
-
-# --- E. 初始化網路 ---
-model_2h_json = """
-{
-  "input": {
-    "nodes": 2,
-    "activation": "linear"
-  },
-  "layer": [
+    # --- E. 初始化網路 ---
+    model_2h_json = """
     {
-      "nodes": 2,
-      "activation": "sigmoid",
-      "weights": [[0.1, -0.1], [-0.1, 0.1]],
-      "bias_weights": [0.1, -0.1]
+    "input": {
+        "nodes": 2,
+        "activation": "linear"
+    },
+    "layer": [
+        {
+        "nodes": 2,
+        "activation": "sigmoid",
+        "weights": [[0.1, -0.1], [-0.1, 0.1]],
+        "bias_weights": [0.1, -0.1]
+        }
+    ],
+    "output": {
+        "nodes": 1,
+        "activation": "linear",
+        "weights": [[0.1, -0.1]],
+        "bias_weights": [0.1]
     }
-  ],
-  "output": {
-    "nodes": 1,
-    "activation": "linear",
-    "weights": [[0.1, -0.1]],
-    "bias_weights": [0.1]
-  }
-}
-"""
+    }
+    """
 
-# 假設這是你的 Network 初始化方式
-net = Network(model_2h_json)
+    # 假設這是你的 Network 初始化方式
+    net = Network(model_2h_json)
 
-# 注意：你原本 JSON 裡有寫死 weights，但這裡呼叫 random_weight 會把 JSON 的覆蓋掉
-# 這通常是正確的，因為訓練前我們希望隨機初始化
-net.generate_random_weight(-0.1, 0.1)
-print("初始權重:")
-net.show_weights()
+    # 注意：你原本 JSON 裡有寫死 weights，但這裡呼叫 random_weight 會把 JSON 的覆蓋掉
+    # 這通常是正確的，因為訓練前我們希望隨機初始化
+    net.generate_random_weight(-0.1, 0.1)
+    print("初始權重:")
+    net.show_weights()
 
-# 設定 Loss Function (回歸問題使用 MSE)
-loss_func = Network.Loss.mse
-loss_derivative = Network.Loss.mse_derivative
+    # 設定 Loss Function (回歸問題使用 MSE)
+    loss_func = Network.Loss.mse
+    loss_derivative = Network.Loss.mse_derivative
 
-# --- F. 訓練迴圈 (Training Loop) ---
-learning_rate = 0.05
-epochs = 100  # 訓練幾輪
+    # --- F. 訓練迴圈 (Training Loop) ---
+    learning_rate = 0.05
+    epochs = 100  # 訓練幾輪
 
-print("\n開始訓練...")
-for epoch in range(epochs):
-    
-    if epoch == 40:
-        learning_rate = learning_rate / 10
-        print(f"\n[訊息] Epoch {epoch}: 學習率已調整為 {learning_rate}\n")
+    print("\n開始訓練...")
+    for epoch in range(epochs):
         
-    if epoch == 70:
-        learning_rate = learning_rate / 10
-        print(f"\n[訊息] Epoch {epoch}: 學習率已調整為 {learning_rate}\n")
-    
-    total_loss = 0
-    
-    for x, y in zip(train_inputs, train_expects):
-        # 1. Forward
+        if epoch == 40:
+            learning_rate = learning_rate / 10
+            print(f"\n[訊息] Epoch {epoch}: 學習率已調整為 {learning_rate}\n")
+            
+        if epoch == 70:
+            learning_rate = learning_rate / 10
+            print(f"\n[訊息] Epoch {epoch}: 學習率已調整為 {learning_rate}\n")
+        
+        total_loss = 0
+        
+        for x, y in zip(train_inputs, train_expects):
+            # 1. Forward
+            output = net.forward(x)
+            
+            # 2. Calculate Loss (僅供觀察)
+            loss = loss_func(y, output)
+            total_loss += loss
+            
+            # 3. Backward (這部分依賴你 Network 類別的實作，假設有這個方法)
+            net.set_output_gradients(output, y, "mse")
+            net.backward() 
+            net.zero_grad(learning_rate)
+        
+        if epoch % 10 == 0:
+            print(f"Epoch {epoch}: Avg Loss = {total_loss / len(train_inputs):.6f}")
+
+    # --- G. 最終測試評估 (Evaluation) ---
+    print("\n========================================")
+    print("開始最終測試 (評估整個檢查集)...")
+    print("========================================")
+
+    total_test_loss = 0
+    total_abs_error_lbs = 0  # 用來累積絕對誤差 (磅)
+
+    # 走訪每一筆測試資料
+    for x, y in zip(test_inputs, test_expects):
+        
+        # 1. Forward (只做前向傳播，不做反向傳播!)
         output = net.forward(x)
         
-        # 2. Calculate Loss (僅供觀察)
-        loss = loss_func(y, output)
-        total_loss += loss
+        # 2. 取得預測值與真實值 (Z-score)
+        pred_z = output[0]
+        real_z = y[0]
         
-        # 3. Backward (這部分依賴你 Network 類別的實作，假設有這個方法)
-        net.set_output_gradients(output, y, "mse")
-        net.backward() 
-        net.zero_grad(learning_rate)
-    
-    if epoch % 10 == 0:
-        print(f"Epoch {epoch}: Avg Loss = {total_loss / len(train_inputs):.6f}")
+        # 3. 計算 MSE (標準化空間的 Loss) - 用來跟訓練時的 Loss 比較
+        loss = (pred_z - real_z) ** 2
+        total_test_loss += loss
+        
+        # 4. 還原成真實單位 (磅)
+        pred_lbs = (pred_z * w_std) + w_mean
+        real_lbs = (real_z * w_std) + w_mean
+        
+        # 5. 計算絕對誤差 (MAE) - 這是給人類看的指標
+        # 我們想知道平均預測差幾磅，而不是差幾磅的平方
+        total_abs_error_lbs += abs(pred_lbs - real_lbs)
 
-# --- G. 最終測試評估 (Evaluation) ---
-print("\n========================================")
-print("開始最終測試 (評估整個檢查集)...")
-print("========================================")
+    # --- 計算平均值 ---
+    avg_test_mse = total_test_loss / len(test_inputs)
+    avg_mae_lbs = total_abs_error_lbs / len(test_inputs)
 
-total_test_loss = 0
-total_abs_error_lbs = 0  # 用來累積絕對誤差 (磅)
+    print(f"測試集樣本數: {len(test_inputs)}")
+    print(f"最終 MSE Loss (Z-score): {avg_test_mse:.6f}")
+    print(f"平均絕對誤差 (MAE): {avg_mae_lbs:.2f} lbs")
 
-# 走訪每一筆測試資料
-for x, y in zip(test_inputs, test_expects):
-    
-    # 1. Forward (只做前向傳播，不做反向傳播!)
-    output = net.forward(x)
-    
-    # 2. 取得預測值與真實值 (Z-score)
-    pred_z = output[0]
-    real_z = y[0]
-    
-    # 3. 計算 MSE (標準化空間的 Loss) - 用來跟訓練時的 Loss 比較
-    loss = (pred_z - real_z) ** 2
-    total_test_loss += loss
-    
-    # 4. 還原成真實單位 (磅)
-    pred_lbs = (pred_z * w_std) + w_mean
-    real_lbs = (real_z * w_std) + w_mean
-    
-    # 5. 計算絕對誤差 (MAE) - 這是給人類看的指標
-    # 我們想知道平均預測差幾磅，而不是差幾磅的平方
-    total_abs_error_lbs += abs(pred_lbs - real_lbs)
-
-# --- 計算平均值 ---
-avg_test_mse = total_test_loss / len(test_inputs)
-avg_mae_lbs = total_abs_error_lbs / len(test_inputs)
-
-print(f"測試集樣本數: {len(test_inputs)}")
-print(f"最終 MSE Loss (Z-score): {avg_test_mse:.6f}")
-print(f"平均絕對誤差 (MAE): {avg_mae_lbs:.2f} lbs")
-
-# --- (選用) 顯示前 5 筆預測結果給你看感覺 ---
-print("\n[前 5 筆預測抽樣]")
-for i in range(5):
-    out = net.forward(test_inputs[i])[0]
-    p_lbs = (out * w_std) + w_mean
-    r_lbs = (test_expects[i][0] * w_std) + w_mean
-    print(f"樣本 {i+1}: 預測 {p_lbs:.1f} lbs | 實際 {r_lbs:.1f} lbs | 誤差 {abs(p_lbs - r_lbs):.1f} lbs")
-    
-print("最後權重:")
-net.show_weights()
+    # --- (選用) 顯示前 5 筆預測結果給你看感覺 ---
+    print("\n[前 5 筆預測抽樣]")
+    for i in range(5):
+        out = net.forward(test_inputs[i])[0]
+        p_lbs = (out * w_std) + w_mean
+        r_lbs = (test_expects[i][0] * w_std) + w_mean
+        print(f"樣本 {i+1}: 預測 {p_lbs:.1f} lbs | 實際 {r_lbs:.1f} lbs | 誤差 {abs(p_lbs - r_lbs):.1f} lbs")
+        
+    print("最後權重:")
+    net.show_weights()
 
 # ==========================================
 # Task 2
 # ==========================================
 
+def generate_minimal_one_hot_encoding(
+    row_data: Dict[str, str], 
+    column_name: str, 
+    regex_pattern: str
+) -> Dict[str, int]:
+    """
+    對單行數據的指定欄位進行獨熱編碼。
+    只為符合正規表達式、且成功提取的片段創建 Key (Value 為 1)。
+    
+    Args:
+        row_data: 單行數據的字典表示 (key為欄位名，value為值)。
+        column_name: 要編碼的欄位名稱 (例如 'Name')。
+        regex_pattern: 用於提取片段的正規表達式。
+        
+    Returns:
+        一個包含獨熱編碼結果的字典 (例如 {'Name_Mr': 1})。
+    """
+    one_hot_item = {}
+    
+    if column_name not in row_data:
+        return one_hot_item
+    
+    cell_value = row_data[column_name]
+    
+    # 提取當前行的匹配片段
+    match = re.search(regex_pattern, cell_value)
+    
+    if match:
+        # 提取第一個捕獲組（即稱謂片段）
+        extracted_segment = match.group(1) 
+        
+        # 創建 Key：'欄位名_片段'
+        new_key = f"{column_name}_{extracted_segment}"
+        
+        # 設置 Value 為 1
+        one_hot_item[new_key] = 1
+            
+    return one_hot_item
+
+
+WHOLE_STRING_REGEX = r'^(.+)$'
+TITLE_REGEX = r' ([A-Za-z]+)\.'
 
 raw_data = read_csv_to_dict("titanic.csv")
 processed_data = []
 
 for row in raw_data:
     try:
-        # 將字串轉為浮點數，並處理 Gender
-        item = {
-            'Gender': 0 if row['Gender'] == 'Male' else 1, # Male=0, Female=1
-            'Height': float(row['Height']),
-            'Weight': float(row['Weight'])
-        }
+
+        item = {}
+        # 處理Pclass
+        pclass_dict = generate_minimal_one_hot_encoding(row, "Pclass" , WHOLE_STRING_REGEX)
+        item.update(pclass_dict)
+
+        # 處理Name
+        name_dict = generate_minimal_one_hot_encoding(row, "Name", TITLE_REGEX)
+        item.update(name_dict)
+        
+        # 處理Sex
+        item["Sex"] = 1 if row["Sex"] == "male" else 0
+
+        # 處理Age
+        item["Age"] = row["Age"]        
+
+        # 處理SibSp
+        item["SibSp"] = row["SibSp"]        
+
+        # 處理Parch
+        item["Parch"] = row["Parch"]        
+
+       
+
         processed_data.append(item)
     except ValueError:
         continue # 跳過資料缺漏或格式錯誤的行
+
