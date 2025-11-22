@@ -665,9 +665,10 @@ def task1():
 # ==========================================
 
 def generate_minimal_one_hot_encoding(
-    row_data: Dict[str, str], 
+    row_data: Dict[str, Any], 
     column_name: str, 
-    regex_pattern: str
+    regex_pattern: str,
+    create_None: bool
 ) -> Dict[str, int]:
     """
     對單行數據的指定欄位進行獨熱編碼。
@@ -677,35 +678,48 @@ def generate_minimal_one_hot_encoding(
         row_data: 單行數據的字典表示 (key為欄位名，value為值)。
         column_name: 要編碼的欄位名稱 (例如 'Name')。
         regex_pattern: 用於提取片段的正規表達式。
+        create_None: 如果不匹配正規表達式，是否創建一個名為 'column_name_None' 的特徵。
         
     Returns:
-        一個包含獨熱編碼結果的字典 (例如 {'Name_Mr': 1})。
+        一個包含獨熱編碼結果的字典 (例如 {'Name_Mr': 1} 或 {'Cabin_None': 1})。
     """
     one_hot_item = {}
     
+    # 檢查欄位是否存在於數據中
     if column_name not in row_data:
         return one_hot_item
     
     cell_value = row_data[column_name]
     
+    # 確保值是字串，以應對可能的 None 或其他類型
+    if cell_value is None:
+        cell_value = ""
+    else:
+        # 強制轉換為字串，以便進行 re.search
+        cell_value = str(cell_value)
+    
     # 提取當前行的匹配片段
     match = re.search(regex_pattern, cell_value)
     
     if match:
-        # 提取第一個捕獲組（即稱謂片段）
+        # 提取第一個捕獲組
         extracted_segment = match.group(1) 
         
         # 創建 Key：'欄位名_片段'
         new_key = f"{column_name}_{extracted_segment}"
-        
-        # 設置 Value 為 1
         one_hot_item[new_key] = 1
-            
+
+    elif create_None:
+        # 如果沒有匹配，且 create_None 為 True，則創建 None 類別
+        new_key = f"{column_name}_None"
+        one_hot_item[new_key] = 1
+        
     return one_hot_item
 
 
 WHOLE_STRING_REGEX = r'^(.+)$'
 TITLE_REGEX = r' ([A-Za-z]+)\.'
+FIRST_LETTER_REGEX = r'([A-Z])'
 
 raw_data = read_csv_to_dict("titanic.csv")
 processed_data = []
@@ -734,7 +748,11 @@ for row in raw_data:
         # 處理Parch
         item["Parch"] = row["Parch"]        
 
+        # 處理Fare(右偏分部取對數)
+        item["Fare"] = math.log(row["Fare"]+1)
        
+        # 處理Cabin
+        cabin_dict = generate_minimal_one_hot_encoding(row, "Cabin", FIRST_LETTER_REGEX, True)
 
         processed_data.append(item)
     except ValueError:
