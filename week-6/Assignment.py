@@ -565,15 +565,47 @@ def calculate_stats(values):
 
 
 # --- 數據拆分 ---
-def train_test_split_pure_python(
+def train_test_split(
     features: List[List[float]], labels: List[Any], test_ratio: float, seed: int = 42
 ) -> Tuple[List[List[float]], List[List[float]], List[Any], List[Any]]:
+    """
+    依指定比例將資料隨機切分為訓練集與測試集。
+
+    此函式會：
+    1. 確認 features 與 labels 的資料筆數一致
+    2. 根據 test_ratio 計算測試集大小
+    3. 以固定亂數種子打亂索引，使結果可重現
+    4. 依照打亂後的索引將資料切出訓練集與測試集
+
+    Args:
+        features (List[List[float]]):
+            特徵矩陣，每一筆資料為一個浮點向量。
+        labels (List[Any]):
+            標籤列表，長度需與 features 相同。
+        test_ratio (float):
+            測試集比例（例如 0.2 表示 20% 為測試集）。
+        seed (int, optional):
+            亂數種子，使切分結果可重現。預設為 42。
+
+    Returns:
+        Tuple[
+            List[List[float]],  # X_train
+            List[List[float]],  # X_test
+            List[Any],          # Y_train
+            List[Any]           # Y_test
+        ]:
+            - X_train: 訓練集特徵
+            - X_test: 測試集特徵
+            - Y_train: 訓練集標籤
+            - Y_test: 測試集標籤
+    """
+    
 
     random.seed(seed)
     data_size = len(features)
 
     if data_size != len(labels):
-        raise ValueError("特徵矩陣和標籤的行數必須一致。")
+        raise ValueError("特徵和標籤的行數必須一致。")
 
     test_size = int(data_size * test_ratio)
     indices = list(range(data_size))
@@ -582,7 +614,6 @@ def train_test_split_pure_python(
     test_indices = indices[:test_size]
     train_indices = indices[test_size:]
 
-    # 這裡的 labels 是 Any 類型，因為 Task 1 的標籤是 [float]，Task 2 是 int
     X_train = [features[i] for i in train_indices]
     X_test = [features[i] for i in test_indices]
     Y_train = [labels[i] for i in train_indices]
@@ -602,7 +633,38 @@ def preprocess_and_standardize_gender_data(
     raw_data_str: List[Dict[str, str]],
 ) -> Tuple[List[Dict[str, float]], List[Dict[str, float]], float, float, float, float]:
     """
-    處理 Task 1 的數據，但不在這裡拆分和轉換為最終矩陣，而是返回處理後的字典列表和統計參數。
+    對性別資料集進行前處理，包括格式轉換、資料切分與統計計算。
+
+    本函式會：
+    1. 將 Gender 轉換為數值：Male→0、Female→1
+    2. 將 Height、Weight 轉成 float
+    3. 將資料打亂後以 80% 作為訓練集，20% 作為測試集
+    4. 使用訓練集計算 Height 與 Weight 的平均值與標準差（供標準化使用）
+
+    Args:
+        raw_data_str (List[Dict[str, str]]):
+            原始資料列表，每筆為字典，例如：
+            {
+                "Gender": "Male" 或 "Female",
+                "Height": "170",
+                "Weight": "65"
+            }
+
+    Returns:
+        Tuple[
+            List[Dict[str, float]],  # train_set
+            List[Dict[str, float]],  # test_set
+            float,                   # h_mean
+            float,                   # h_std
+            float,                   # w_mean
+            float                    # w_std
+        ]:
+            - train_set: 前處理後的訓練資料（Gender/Height/Weight 全為 float）
+            - test_set: 前處理後的測試資料
+            - h_mean: 訓練集 Height 平均值
+            - h_std: 訓練集 Height 標準差
+            - w_mean: 訓練集 Weight 平均值
+            - w_std: 訓練集 Weight 標準差
     """
     processed_data = []
 
@@ -668,6 +730,52 @@ def generate_minimal_one_hot_encoding(
 def preprocess_and_standardize_titanic_data(
     raw_data: List[Dict[str, Any]],
 ) -> Tuple[List[List[float]], List[int], int]:
+    """
+    前處理 Titanic 數據並轉換為標準化後的特徵矩陣。
+
+    此函式包含多階段的資料處理流程，包括：
+    1. 分離目標變數 Survived
+    2. 提取並編碼類別特徵（Pclass、Name Title、Sex、Cabin、Embarked）
+    3. 建立完整 one-hot 特徵集合（自動偵測常見稱謂）
+    4. 缺失值處理（Age、Fare）
+    5. 對 Age, Fare, SibSp, Parch 進行 Z-score 標準化
+    6. 根據統一特徵順序建立最終特徵矩陣
+
+    Args:
+        raw_data (List[Dict[str, Any]]):
+            由 CSV 或原始輸入轉換而來的 Titanic 資料列。
+            每一筆資料是一個字典，鍵可能包含：
+            - "Survived": 是否存活 (0/1)
+            - "Pclass": 客艙等級
+            - "Name": 姓名（包含稱謂）
+            - "Sex": 性別
+            - "Age": 年齡（可能為空）
+            - "SibSp": 同行兄弟姊妹數
+            - "Parch": 同行父母子女數
+            - "Fare": 票價（可能為空）
+            - "Cabin": 客艙號碼（可能為空）
+            - "Embarked": 登船港口（可能為空）
+
+    Returns:
+        Tuple[
+            List[List[float]],  # final_feature_matrix
+            List[int],          # target_labels
+            int                 # feature_dimension
+        ]:
+            - final_feature_matrix:
+                經過 one-hot、標準化、補值後的特徵矩陣（每列為一位乘客的完整特徵）。
+            - target_labels:
+                Survived 目標標籤列表（0 或 1）。
+            - feature_dimension:
+                最終特徵的數量（特徵向量長度）。
+
+    Notes:
+        - 此函式不負責切分 train/test（切分在外部進行）。
+        - Age 與 Fare 使用中位數補值。
+        - Fare 先 log-transform 再標準化。
+        - Name Title 會自動偵測稀有稱謂，統一編碼為 "Rare"。
+        - one-hot 特徵順序由 FINAL_FEATURE_MAP 決定，確保特徵矩陣一致性。
+    """
 
     # --- Stage 1A: 分離目標標籤 (Y) 和初始化特徵列表 (X) ---
     target_labels = []
@@ -682,9 +790,6 @@ def preprocess_and_standardize_titanic_data(
             data_for_processing.append(row)
             continue
 
-    # =================================================================
-    # 🔥 新增步驟：自動統計稱謂頻率 (讓數據決定誰是稀有)
-    # =================================================================
     all_raw_titles = []
     for row in data_for_processing:
         name_str = str(row.get("Name", ""))
@@ -718,15 +823,13 @@ def preprocess_and_standardize_titanic_data(
         item = {}
 
         # 處理類別特徵
+        # 處理Pclass
         pclass_dict = generate_minimal_one_hot_encoding(
             row, "Pclass", REGEX["WHOLE_STRING"]
         )
         item.update(pclass_dict)
         all_keys["Pclass"].update(pclass_dict.keys())
         
-        # -------------------------------------------------------------
-        # 🔥 修改 Name 處理邏輯：動態映射
-        # -------------------------------------------------------------
         name_str = str(row.get("Name", ""))
         match = re.search(REGEX["NAME_TITLE"], name_str)
         
@@ -775,6 +878,8 @@ def preprocess_and_standardize_titanic_data(
         )
         item.update(cabin_dict)
         all_keys["Cabin"].update(cabin_dict.keys())
+        
+        # 處理Embarked
         embarked_dict = generate_minimal_one_hot_encoding(
             row, "Embarked", REGEX["WHOLE_STRING"], True
         )
@@ -783,11 +888,13 @@ def preprocess_and_standardize_titanic_data(
 
         processed_data.append(item)
 
-    # --- Stage 2A/2B: 填補、對數轉換 (Fare) 並收集數據 ---
+    # --- Stage 2A/2B: 填補缺失、對數轉換Fare ---
     all_ages = [row.get("Age") for row in processed_data]
     all_fares = [row.get("Fare") for row in processed_data]
+    
     MEDIAN_AGE = calculate_median(all_ages)
     MEDIAN_FARE = calculate_median(all_fares)
+    
     temp_age_list, temp_fare_list, temp_sibsp_list, temp_parch_list = [], [], [], []
 
     for row in processed_data:
@@ -806,10 +913,13 @@ def preprocess_and_standardize_titanic_data(
     # --- Stage 2C/2D: 計算和執行 Z-Score 標準化 ---
     MEAN_AGE = calculate_mean(temp_age_list)
     STD_AGE = calculate_std(temp_age_list, MEAN_AGE)
+    
     MEAN_FARE = calculate_mean(temp_fare_list)
     STD_FARE = calculate_std(temp_fare_list, MEAN_FARE)
+    
     MEAN_SIBSP = calculate_mean(temp_sibsp_list)
     STD_SIBSP = calculate_std(temp_sibsp_list, MEAN_SIBSP)
+    
     MEAN_PARCH = calculate_mean(temp_parch_list)
     STD_PARCH = calculate_std(temp_parch_list, MEAN_PARCH)
 
@@ -819,7 +929,7 @@ def preprocess_and_standardize_titanic_data(
         row["SibSp"] = (row["SibSp"] - MEAN_SIBSP) / STD_SIBSP
         row["Parch"] = (row["Parch"] - MEAN_PARCH) / STD_PARCH
 
-    # --- Stage 2E: 統一特徵空間並轉換為矩陣 (final_feature_matrix) ---
+    # --- Stage 2E: 統一特徵 ---
     SCALAR_KEYS = [
         "Sex",
         "Age",
@@ -850,7 +960,7 @@ def build_titanic_model_config(input_nodes: int):
     [Task 2 輔助] 生成 Titanic 神經網路模型的 JSON 設定結構
     """
     # 隱藏層結構：嘗試兩層，節點數介於輸入(約12-15)與輸出(1)之間
-    hidden_nodes_list = [20, 10, 4] 
+    hidden_nodes_list = [8, 4] 
     
     # 輸出層：1 個節點 (生存機率)，激活函數一定要用 Sigmoid (將輸出壓在 0~1)
     output_nodes = 1
@@ -877,7 +987,6 @@ def calculate_accuracy(predictions: List[List[float]], targets: List[int]) -> fl
     if total == 0: return 0.0
     
     for pred_vector, target in zip(predictions, targets):
-        # pred_vector[0] 是模型輸出的機率 (例如 0.72)
         # 如果 >= 0.5 預測為 1 (存活)，否則為 0 (死亡)
         pred_label = 1 if pred_vector[0] >= 0.5 else 0
         
@@ -943,22 +1052,18 @@ def run_task1_training():
     }
     """
 
-    # 假設這是你的 Network 初始化方式
     net = Network(model_2h_json)
 
-    # 注意：你原本 JSON 裡有寫死 weights，但這裡呼叫 random_weight 會把 JSON 的覆蓋掉
-    # 這通常是正確的，因為訓練前我們希望隨機初始化
     net.generate_random_weight(-0.1, 0.1)
-    print("初始權重:")
-    net.show_weights()
+    # print("初始權重:")
+    # net.show_weights()
 
-    # 設定 Loss Function (回歸問題使用 MSE)
+    # 設定 Loss Function
     loss_func = Network.Loss.mse
-    loss_derivative = Network.Loss.mse_derivative
 
-    # --- F. 訓練迴圈 (Training Loop) ---
+    # --- F. 訓練迴圈  ---
     learning_rate = 0.05
-    epochs = 100  # 訓練幾輪
+    epochs = 100  
 
     print("\n開始訓練...")
     for epoch in range(epochs):
@@ -977,11 +1082,11 @@ def run_task1_training():
             # 1. Forward
             output = net.forward(x)
 
-            # 2. Calculate Loss (僅供觀察)
+            # 2. Calculate Loss
             loss = loss_func(y, output)
             total_loss += loss
 
-            # 3. Backward (這部分依賴你 Network 類別的實作，假設有這個方法)
+            # 3. Backward
             net.set_output_gradients(output, y, "mse")
             net.backward()
             net.zero_grad(learning_rate)
@@ -995,12 +1100,12 @@ def run_task1_training():
     print("========================================")
 
     total_test_loss = 0
-    total_abs_error_lbs = 0  # 用來累積絕對誤差 (磅)
+    total_abs_error_lbs = 0  # 累積絕對誤差 (磅)
 
     # 走訪每一筆測試資料
     for x, y in zip(test_inputs, test_expects):
 
-        # 1. Forward (只做前向傳播，不做反向傳播!)
+        # 1. Forward 
         output = net.forward(x)
 
         # 2. 取得預測值與真實值 (Z-score)
@@ -1015,8 +1120,8 @@ def run_task1_training():
         pred_lbs = (pred_z * w_std) + w_mean
         real_lbs = (real_z * w_std) + w_mean
 
-        # 5. 計算絕對誤差 (MAE) - 這是給人類看的指標
-        # 我們想知道平均預測差幾磅，而不是差幾磅的平方
+        # 5. 
+        # 總差距
         total_abs_error_lbs += abs(pred_lbs - real_lbs)
 
     # --- 計算平均值 ---
@@ -1025,20 +1130,20 @@ def run_task1_training():
 
     print(f"測試集樣本數: {len(test_inputs)}")
     print(f"最終 MSE Loss (Z-score): {avg_test_mse:.6f}")
-    print(f"平均絕對誤差 (MAE): {avg_mae_lbs:.2f} lbs")
+    print(f"平均絕對誤差 : {avg_mae_lbs:.2f} lbs")
 
     # --- (選用) 顯示前 5 筆預測結果給你看感覺 ---
-    print("\n[前 5 筆預測抽樣]")
-    for i in range(5):
-        out = net.forward(test_inputs[i])[0]
-        p_lbs = (out * w_std) + w_mean
-        r_lbs = (test_expects[i][0] * w_std) + w_mean
-        print(
-            f"樣本 {i+1}: 預測 {p_lbs:.1f} lbs | 實際 {r_lbs:.1f} lbs | 誤差 {abs(p_lbs - r_lbs):.1f} lbs"
-        )
+    # print("\n[前 5 筆預測抽樣]")
+    # for i in range(5):
+    #     out = net.forward(test_inputs[i])[0]
+    #     p_lbs = (out * w_std) + w_mean
+    #     r_lbs = (test_expects[i][0] * w_std) + w_mean
+    #     print(
+    #         f"樣本 {i+1}: 預測 {p_lbs:.1f} lbs | 實際 {r_lbs:.1f} lbs | 誤差 {abs(p_lbs - r_lbs):.1f} lbs"
+    #     )
 
-    print("最後權重:")
-    net.show_weights()
+    # print("最後權重:")
+    # net.show_weights()
 
 
 def run_task2_training():
@@ -1053,7 +1158,7 @@ def run_task2_training():
     )
     
     # 執行數據拆分
-    X_train, X_test, Y_train, Y_test = train_test_split_pure_python(
+    X_train, X_test, Y_train, Y_test = train_test_split(
         final_feature_matrix, target_labels, TEST_SIZE_RATIO, RANDOM_SEED
     )
 
@@ -1069,12 +1174,11 @@ def run_task2_training():
     net.generate_random_weight(-0.1, 0.1) # 隨機初始化權重
 
     # [Step 3] 設定訓練參數
-    # 如果你的 Network 支援 "cross_entropy"，這裡改用它會更好；否則使用 "mse"
     loss_name = "binary_cross_entropy" 
     loss_func = Network.Loss.binary_cross_entropy 
     
     learning_rate = 0.05 
-    epochs = 200        # 需要較多輪次來收斂
+    epochs = 200
 
     print(f"\n[Step 3] 開始訓練 (Epochs: {epochs}, LR: {learning_rate})...")
     
@@ -1105,8 +1209,8 @@ def run_task2_training():
             acc = calculate_accuracy(train_preds, Y_train)
             print(f"Epoch {epoch}: Loss = {avg_loss:.6f} | Train Acc = {acc*100:.1f}%")
 
-    print("\n最終權重")
-    net.show_weights()
+    # print("\n最終權重")
+    # net.show_weights()
     # [Step 4] 最終測試評估
     print("\n[Step 4] 最終測試集評估...")
     
@@ -1117,7 +1221,7 @@ def run_task2_training():
     
     final_acc = calculate_accuracy(test_preds, Y_test)
     print(f"========================================")
-    print(f"🏆 Titanic 測試集準確率: {final_acc*100:.2f}%")
+    print(f"Titanic 測試集準確率: {final_acc*100:.2f}%")
     print(f"========================================")
     
     # 顯示前 5 筆預測詳情
@@ -1126,18 +1230,18 @@ def run_task2_training():
         prob = test_preds[i][0]
         pred = "生還" if prob >= 0.5 else "死亡"
         actual = "生還" if Y_test[i] == 1 else "死亡"
-        status = "✅" if pred == actual else "❌"
+        status = "成功預測" if pred == actual else "預測失敗"
         print(f"樣本 {i}: 預測機率 {prob:.4f} ({pred}) | 實際: {actual} {status}")
 
 
 if __name__ == "__main__":
 
     print("========================================")
-    print("        🚀 執行 Task 1: Gender-Weight (迴歸) 🚀")
+    print("        執行 Task 1: Gender-Weight (迴歸) ")
     print("========================================")
-    run_task1_training() # 執行迴歸任務的完整流程
+    run_task1_training() 
 
     print("\n========================================")
-    print("        🚢 執行 Task 2: Titanic (分類) 🚢")
+    print("        執行 Task 2: Titanic (分類) ")
     print("========================================")
-    # run_task2_training()
+    run_task2_training()
