@@ -3,6 +3,7 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 import torch
+import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
 
@@ -139,8 +140,15 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 print("已創建訓練集、測試集")
 
+# D.3. 強制重置索引
+# 防止 StandardScaler 賦值時的 IndexError
+X_train = X_train.reset_index(drop=True)
+X_test = X_test.reset_index(drop=True)
+y_train = y_train.reset_index(drop=True)
+y_test = y_test.reset_index(drop=True)
+
 # -------------------------------------------
-#              E.資料標準化
+#       E.資料標準化 (修正版)
 # -------------------------------------------
 print("\n開始進行資料標準化")
 scaler = StandardScaler()
@@ -150,11 +158,21 @@ numeric_cols = ["Age", "Fare", "SibSp", "Parch"]
 print(f"將對以下欄位進行標準化：{numeric_cols}")
 
 # E.2. 訓練集標準化 (Fit and Transform)
-X_train[numeric_cols] = scaler.fit_transform(X_train[numeric_cols])
+# E.2.1. 對數據進行轉換 (輸出為 NumPy Array)
+X_train_scaled = scaler.fit_transform(X_train[numeric_cols])
+
+# E.2.2 將 NumPy Array 轉換回帶有原始欄位名稱的 DataFrame，並賦值回 X_train
+X_train[numeric_cols] = pd.DataFrame(X_train_scaled, columns=numeric_cols, index=X_train.index)
+
 print("訓練集數值欄位標準化完成。")
 
 # E.3. 測試集標準化 (Transform ONLY)
-X_test[numeric_cols] = scaler.transform(X_test[numeric_cols])
+# E.3.1: 對數據進行轉換 (輸出為 NumPy Array)
+X_test_scaled = scaler.transform(X_test[numeric_cols])
+
+# E.3.2 將 NumPy Array 轉換回帶有原始欄位名稱和索引的 DataFrame，並賦值回 X_test
+X_test[numeric_cols] = pd.DataFrame(X_test_scaled, columns=numeric_cols, index=X_test.index)
+
 print("測試集數值欄位標準化完成。")
 
 
@@ -163,9 +181,17 @@ print("測試集數值欄位標準化完成。")
 # -------------------------------------------
 class TitanicDataset(Dataset):
     def __init__(self, X, y):
-        self.X = torch.tensor(X, dtype=torch.float32)
-        self.y = torch.tensor(y, dtype=torch.float32).view(-1, 1)  # 轉成 (N, 1) 形狀
+        try:
+            X_numpy = X.astype(float).values
+            y_numpy = y.astype(float).values
+        except ValueError as e:
+            print("資料轉換失敗！請檢查 X_train 中是否還有字串欄位。")
+            print("目前的欄位型態：")
+            print(X.dtypes)
+            raise e
 
+        self.X = torch.tensor(X_numpy, dtype=torch.float32)
+        self.y = torch.tensor(y_numpy, dtype=torch.float32).view(-1, 1)
     def __len__(self):
         return len(self.X)
 
@@ -181,17 +207,117 @@ test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
 # -------------------------------------------
 #              G.定義模型
 # -------------------------------------------
+print("定義模型")
 class SurvivalModel(nn.Module):
-    def __init__(self):
+    def __init__(self, input_num):
         super(SurvivalModel, self).__init__()
-
-        # 輸入層有 2 個特徵 (Gender, Height)
-        self.h_layer1 = nn.Linear(2, 2)
-        # 輸出層只有 1 個值 (Weight)
-        self.output = nn.Linear(2, 1)
+        
+        # 增加寬度以避免瓶頸
+        self.layer1 = nn.Linear(input_num, 8) 
+        self.layer2 = nn.Linear(8, 4)
+        self.layer3 = nn.Linear(4, 1) 
+        
+        self.relu = nn.ReLU()
 
     def forward(self, x):
-        x = self.h_layer(x)
-        x = self.output(x)  # 直接輸出預測值
+        
+        # Layer 1: Linear -> ReLU
+        x = self.layer1(x)
+        x = self.relu(x)
+        
+        # Layer 2: Linear -> ReLU
+        x = self.layer2(x)
+        x = self.relu(x)
+        
+        # Output Layer: Linear
+        x = self.layer3(x)
+
         return x
-#123456
+    
+# -------------------------------------------
+#              H.開始訓練
+# -------------------------------------------
+print("開始訓練")
+
+# H1. 實例model
+input_features = X_train.shape[1] 
+model = SurvivalModel(input_features)
+
+# H2. 設定訓練模式
+model.train()
+
+# H3. 定義損失函數
+criterion = nn.BCEWithLogitsLoss() 
+print("損失函數已定義為 nn.BCEWithLogitsLoss()")
+
+# H4. 設定學習率
+learning_rate = 0.001
+
+# H5. 優化器：使用 Adam，並將模型的參數傳入
+optimizer = optim.Adam(model.parameters(), lr=learning_rate) 
+print(f"優化器已定義為 Adam, 學習率: {learning_rate}")
+
+
+# H6. 開始訓練
+num_epochs = 1000
+for epoch in range(num_epochs):
+    running_loss = 0.0
+
+    for batch_X, batch_y in train_loader:
+        
+        # 步驟 1: 梯度歸零
+        optimizer.zero_grad()
+        
+        # 步驟 2: 前向傳播
+        predictions = model(batch_X)
+        
+        # 步驟 3: 計算損失
+        loss = criterion(predictions, batch_y)
+        
+        # 步驟 4: 反向傳播
+        loss.backward()
+        
+        # 步驟 5: 更新參數
+        optimizer.step()
+        
+        running_loss += loss.item()
+
+    # 打印每個 epoch 的平均 Loss
+    avg_loss = running_loss / len(train_loader)
+    print(
+        f"Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}"
+    )
+
+
+# -------------------------------------------
+#       I.開始測試 (修正版)
+# -------------------------------------------
+print("開始測試")
+
+# I1. 切換到評估模式
+model.eval()
+
+# 初始化總計數器
+total_correct = 0
+total_samples = 0
+
+with torch.no_grad():
+    for batch_X, batch_y in test_loader:
+        
+        # 1. 執行前向傳播 (輸出 Logits)
+        predicted_logits = model(batch_X)
+
+        # 2. 將 Logits 轉換為機率 (Sigmoid)
+        predicted_probs = torch.sigmoid(predicted_logits)
+        
+        # 3. 將機率轉換為二元標籤 (> 0.5 為 1，否則為 0)
+        # .float() 確保類型一致
+        predicted_labels = (predicted_probs > 0.5).float()
+        
+        # 4. 計算批次正確數
+        total_correct += (predicted_labels == batch_y).sum().item()
+        total_samples += batch_y.size(0)
+
+# 6. 計算最終準確度
+accuracy = total_correct / total_samples
+print(f"測試結果: 準確度 {accuracy:.4f} ({total_correct}/{total_samples})")
