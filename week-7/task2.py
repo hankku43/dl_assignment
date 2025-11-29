@@ -1,5 +1,10 @@
 import re
 import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+import torch
+from torch.utils.data import Dataset, DataLoader
+import torch.nn as nn
 
 df = pd.read_csv("titanic.csv")
 print("=====原始數據讀取完成====")
@@ -124,3 +129,69 @@ print(f"最終數據集欄位：{df_final.columns.tolist()} (已大幅擴充)")
 #              D.測試集拆分
 # -------------------------------------------
 print("開始進行測試集拆分")
+# D.1. 分離特徵(X)和目標(y)
+X = df_final.drop("Survived", axis=1)
+y = df_final["Survived"]
+
+# D.2. 創建訓練集、測試集
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+print("已創建訓練集、測試集")
+
+# -------------------------------------------
+#              E.資料標準化
+# -------------------------------------------
+print("\n開始進行資料標準化")
+scaler = StandardScaler()
+
+# E.1. 定義需要標準化的數值欄位
+numeric_cols = ["Age", "Fare", "SibSp", "Parch"]
+print(f"將對以下欄位進行標準化：{numeric_cols}")
+
+# E.2. 訓練集標準化 (Fit and Transform)
+X_train[numeric_cols] = scaler.fit_transform(X_train[numeric_cols])
+print("訓練集數值欄位標準化完成。")
+
+# E.3. 測試集標準化 (Transform ONLY)
+X_test[numeric_cols] = scaler.transform(X_test[numeric_cols])
+print("測試集數值欄位標準化完成。")
+
+
+# -------------------------------------------
+#              F.建立Dataset
+# -------------------------------------------
+class TitanicDataset(Dataset):
+    def __init__(self, X, y):
+        self.X = torch.tensor(X, dtype=torch.float32)
+        self.y = torch.tensor(y, dtype=torch.float32).view(-1, 1)  # 轉成 (N, 1) 形狀
+
+    def __len__(self):
+        return len(self.X)
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
+    
+train_dataset = TitanicDataset(X_train, y_train)
+test_dataset = TitanicDataset(X_test, y_test)
+
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
+
+# -------------------------------------------
+#              G.定義模型
+# -------------------------------------------
+class SurvivalModel(nn.Module):
+    def __init__(self):
+        super(SurvivalModel, self).__init__()
+
+        # 輸入層有 2 個特徵 (Gender, Height)
+        self.h_layer1 = nn.Linear(2, 2)
+        # 輸出層只有 1 個值 (Weight)
+        self.output = nn.Linear(2, 1)
+
+    def forward(self, x):
+        x = self.h_layer(x)
+        x = self.output(x)  # 直接輸出預測值
+        return x
+#123456
