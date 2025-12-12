@@ -99,7 +99,7 @@ initial_out_bias = model.output.bias.clone().detach().cpu().numpy()
 
 # 回歸任務最常用 MSELowss (Mean Squared Error)
 criterion = nn.MSELoss()
-optimizer = optim.SGD(model.parameters(), lr=0.01)
+optimizer = optim.Adam(model.parameters(), lr=0.01)
 
 # --- 步驟 4.5: 檢查初始損失 ---
 

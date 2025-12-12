@@ -254,7 +254,7 @@ print("損失函數已定義為 nn.BCEWithLogitsLoss()")
 learning_rate = 0.001
 
 # H5. 優化器：使用 Adam，並將模型的參數傳入
-optimizer = optim.Adam(model.parameters(), lr=learning_rate) 
+optimizer = optim.SGD(model.parameters(), lr=learning_rate) 
 print(f"優化器已定義為 Adam, 學習率: {learning_rate}")
 
 
