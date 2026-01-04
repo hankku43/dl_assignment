@@ -6,7 +6,7 @@ from gensim.models.doc2vec import TaggedDocument, Doc2Vec
 
 TRAIN_MODEL = "ptt_titles_doc2vec_ver3.model"
 TEST_MODEL = "ptt_titles_doc2vec_ver3.model"
-Total_DATA = "shuffled_total_data.csv"
+Total_DATA = "test_shuffled_total_data.csv"
 
 def main(test_mode):
     # 檢查模型與 CSV 狀態
